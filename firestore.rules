@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'sun@suwonrehab.or.kr' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidResume(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'resumeData', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['id', 'userId', 'title', 'applicantName', 'status', 'adminNotes', 'resumeData', 'photoUploadedAt', 'createdAt', 'updatedAt']) &&
+             data.id is string &&
+             data.id.size() <= 128 &&
+             data.userId is string &&
+             data.userId.size() <= 128 &&
+             data.title is string &&
+             data.title.size() <= 200 &&
+             data.resumeData is map &&
+             (!('applicantName' in data) || (data.applicantName is string && data.applicantName.size() <= 100)) &&
+             (!('status' in data) || data.status in ['대기', '검토중', '취업연계', '완료']) &&
+             (!('adminNotes' in data) || (data.adminNotes is string && data.adminNotes.size() <= 2000)) &&
+             (!('photoUploadedAt' in data) || data.photoUploadedAt == null || (data.photoUploadedAt is string && data.photoUploadedAt.size() <= 64)) &&
+             data.createdAt is string &&
+             data.createdAt.size() <= 64 &&
+             data.updatedAt is string &&
+             data.updatedAt.size() <= 64;
+    }
+
+    // Connection validation endpoint
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Admin authorization collection
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isSignedIn() && (
+        isAdmin() ||
+        request.auth.uid == adminId
+      );
+      allow list: if isAdmin();
+      allow write: if false;
+    }
+
+    // Resumes collection: Admin has full read/write/delete access;
+    // General applicants can create without login (`applicant_public`);
+    // Signed-in owners can read/update/delete their own documents.
+    match /resumes/{resumeId} {
+      allow get: if isValidId(resumeId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().userId == request.auth.uid)
+      );
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(resumeId) && isValidResume(incoming()) && (
+        isAdmin() ||
+        (isSignedIn() && incoming().userId == request.auth.uid && request.auth.token.email_verified == true) ||
+        (incoming().userId == 'applicant_public' && incoming().status == '대기' && incoming().adminNotes == '')
+      );
+      allow update: if isValidId(resumeId) && isValidResume(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().id == existing().id && (
+        isAdmin() ||
+        (
+          isSignedIn() &&
+          request.auth.token.email_verified == true &&
+          existing().userId == request.auth.uid &&
+          incoming().userId == existing().userId &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'applicantName', 'resumeData', 'photoUploadedAt', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(resumeId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().userId == request.auth.uid)
+      );
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "resume": {
+      "title": "Resume Record",
+      "description": "An easy-to-read applicant resume submitted to or managed by Suwon Rehabilitation Center, with 1-week photo retention.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "applicantName": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "status": {
+          "type": "string",
+          "enum": ["대기", "검토중", "취업연계", "완료"]
+        },
+        "adminNotes": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "photoUploadedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "userId", "title", "createdAt", "updatedAt"]
+    },
+    "admin": {
+      "title": "Admin User",
+      "description": "Authorized welfare center staff administrator.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/resumes/{resumeId}": {
+      "schema": { "$ref": "#/entities/resume" },
+      "description": "Resumes submitted by applicants or managed by center staff"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/admin" },
+      "description": "Authorized staff administrators"
+    }
+  }
+}
